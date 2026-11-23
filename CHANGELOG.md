@@ -1,0 +1,326 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [1.4.6] - 2026-11-08
+
+### Security
+- Override dashboard minimatch to ^11.0.1 (locked to 11.0.5), resolving GHSA-g3hv-75wg-m249 and the nine moderate npm audit findings that failed v1.4.5 CI.
+- Rebuild release artifacts from the fixed source, including dashboard source and production assets.
+
+## [1.4.5] - 2026-11-08
+
+### Security
+- Upgrade Temurin build/runtime to 21.0.13+9 and enforce patched Alpine 3.23 package minimums while retaining non-root execution and health checks.
+- Snyk verification remains pending because available credentials return HTTP 401; no findings are ignored or claimed scan-clean.
+
+## [1.4.4] - 2026-09-25
+
+### Security
+- Resolved CSRF and insecure-cookie Snyk findings by adding explicit CSRF/cookie security configuration (`ApiSecurityConfig`) and hardening a cookie usage in the web dashboard's `sidebar.tsx` component.
+- Bumped Jackson to patched versions (2.22.3 / 3.2.3) to resolve known CVEs pulled in via the Spring Boot 4.1.1 BOM.
+- Fixed IP allow/deny-list checks (`IpSecurityService`) to correctly normalize IPv6 loopback and IPv4-mapped address forms, preventing equivalent-but-differently-formatted addresses from bypassing whitelist/blacklist rules.
+- Replaced the `InetAddress`-based IP canonicalizer with a pure, dependency-free string/int-based implementation, removing an unreachable checked-exception code path and achieving 100% line and branch test coverage on the security-critical normalization logic.
+
+### Fixed
+- Swagger/OpenAPI page no longer hardcodes a stale API version; it is now read from the build.
+
+## [1.4.3] - 2026-09-16
+
+### Security
+- Resolved a Regular Expression Injection / ReDoS finding (CWE-400) in `ScheduleManagerService`, `ConfigurationResolver`, and `GeographicRateLimitConfig`: user-controlled wildcard patterns were compiled into a regex and matched with `String.matches()`, vulnerable to catastrophic backtracking. Replaced with a new linear-time, backtracking-free `WildcardPatternMatcher` utility.
+- Resolved a CRLF/HTTP header injection finding (CWE-113) in `CorrelationIdFilter`: incoming `X-Correlation-ID`/`X-Trace-ID` header values are now validated against a safe identifier charset before being reflected into response headers, instead of being echoed back unchecked.
+
+### Added
+- `WildcardPatternMatcherTest` covering matching parity, regex-metacharacter literal handling, null/length guards, and adversarial-pattern timing assertions.
+- `CorrelationIdFilterTest` cases for CRLF injection attempts, disallowed characters, oversized input, and valid IDs.
+
+## [1.4.2] - 2026-09-16
+
+### Security
+- Resolved Snyk Code (CWE-79, Cross-Site Scripting) findings in `GeographicRateLimitController`, `RateLimitConfigController`, and `AdminController`, where unsanitized request URL/body input (rule name, rule ID, rate-limit key, pattern) was reflected directly into plain-text HTTP responses. All reflected values are now HTML-escaped via `HtmlUtils.htmlEscape()`.
+- Set `imagePullPolicy: Always` on the `redis` and `redis-exporter` containers in `k8s/base/redis.yaml` (SNYK-CC-K8S-42), matching the convention already used in `deployment.yaml` and `backup-cronjob.yaml`.
+
+## [1.4.1] - 2026-09-14
+
+### Security
+- Bumped the Docker base image from `eclipse-temurin:21.0.11_10` to `21.0.12_8` (build and Alpine 3.23 JRE runtime stages), resolving High-severity Snyk-reported CVEs in the Alpine OS packages `expat` (→ 2.8.4-r0), `sqlite-libs` (→ 3.53.4-r0), `p11-kit-trust` (→ 0.26.2-r0), and `openssl`/`libssl3`/`libcrypto3` (→ 3.5.8-r0).
+- Hardened the Kubernetes Redis manifest (`k8s/base/redis.yaml`): added a liveness/readiness probe to the `redis-exporter` sidecar container, and changed the pod/container `runAsUser`/`runAsGroup`/`fsGroup` from `999` to `10001` to eliminate a potential UID clash with host user IDs, matching the convention used elsewhere in the manifests.
+- Bumped the `netty.version` BOM override from `4.2.17.Final` to `4.2.18.Final`, resolving a Medium-severity Snyk-reported HTTP Request Smuggling issue (SNYK-JAVA-IONETTY-19778369) in `netty-codec-http`, pulled in transitively via the Gatling load-testing dependencies.
+
+### Fixed
+- Updated `DockerImageTest` to assert against the new pinned base image version.
+
+## [1.4.0] - 2026-09-05
+
+### Changed
+- Upgraded the Spring Boot parent to **4.1.1** (from 4.1.0).
+- Bumped security-relevant BOM overrides: Jackson 2.x to 2.22.2, Jackson 3.x to 3.2.2, Logback to 1.6.3, Netty to 4.2.17.Final, Tomcat to 11.0.25.
+- Upgraded `springdoc-openapi-starter-webmvc-ui` to 3.1.0, `geoip2` to 5.2.0, and `gatling-charts-highcharts` to 3.15.1.
+- Upgraded build plugins: `maven-compiler-plugin` (3.16.0), `jacoco-maven-plugin` (0.8.15), `spotbugs-maven-plugin` (4.10.4.0), `org.owasp:dependency-check-maven` (13.0.0), `scala-maven-plugin` (4.9.10), `gatling-maven-plugin` (4.21.11).
+
+### Security
+- Applied verified Snyk npm remediation for Maven build tooling and resolved remaining Snyk container and Kubernetes manifest findings.
+- Resolved web dashboard npm audit findings, including newly-disclosed advisories in `browserslist`, `@humanfs/node`, and `postcss-selector-parser`.
+
+### Fixed
+- Stabilized Codecov project/patch status reporting.
+
+## [1.3.2] - 2026-06-06
+
+### Added
+- Added centralized, configurable CORS settings via `ratelimiter.cors.*` properties and environment-variable binding.
+
+### Changed
+- Replaced duplicated controller-level CORS annotations with a single global CORS configuration.
+- Updated README and deployment/configuration guides to document the new CORS settings and refreshed versioned release examples for `v1.3.2`.
+
+### Fixed
+- Sanitized API error responses so controller failures no longer expose raw exception messages to clients.
+- Added focused tests to keep the new CORS configuration code fully covered in patch coverage checks.
+
+## [1.3.1] - 2026-05-06
+
+### Fixed
+- Fixed token bucket refill accumulation so sustained traffic no longer loses partial refill progress under frequent checks.
+- Fixed the dashboard backend health banner to work with minimal actuator health responses that only expose top-level status.
+- Fixed load-testing request pacing so configured aggregate rate and duration better match the backend benchmark execution.
+- Fixed dashboard recent activity so it shows a stable startup snapshot plus live delta updates instead of replaying cumulative key totals as fresh events.
+
+### Changed
+- Reworked load-testing reporting to surface throughput and request-count accuracy while marking latency metrics as unavailable until the backend benchmark endpoint provides them.
+- Removed fabricated dashboard algorithm performance values when backend data is unavailable.
+- Refreshed release preparation scripts and generated artifact metadata for the `v1.3.1` patch release.
+
+## [1.3.0] - 2026-05-05
+
+### Added
+- **Adaptive Rate Limiting** with traffic analysis, anomaly detection, and automated limit adjustment.
+- **Time-Based Dynamic Rate Limiting** with schedules, transitions, and dashboard management.
+- **Expanded API Documentation** with Swagger/OpenAPI coverage, deployment guides, ADR updates, and multi-language examples.
+
+### Changed
+- Upgraded the backend platform to **Spring Boot 3.5.11** and **springdoc 2.8.15**.
+- Upgraded dashboard and build dependencies, including security and lint maintenance across the React/Vite frontend.
+- Updated container and CI Redis defaults to **Redis 8**, while keeping explicit Redis 7 compatibility smoke coverage in tests.
+- Pinned Docker build and runtime images to **Eclipse Temurin 21.0.10_7** for reproducible builds.
+- Refreshed release and deployment documentation to reflect current versions and runtime defaults.
+
+### Fixed
+- Cleared dashboard audit findings and lint errors without changing public routes or APIs.
+- Fixed Redis test drift by consolidating Testcontainers setup and validating both Redis 8 default behavior and Redis 7 compatibility.
+- Fixed Docker image validation tests so pinned Temurin 21 images are accepted by the pipeline.
+
+### Technical
+- Total tests now pass at **510** with no known failures on the release branch.
+- Release artifacts now target **v1.3.0** across Maven, Kubernetes examples, and release preparation scripts.
+
+## [1.2.0] - 2025-10-23
+
+### Added
+- **🎨 Interactive Web Dashboard**: Modern React-based monitoring and management interface
+  - Real-time metrics visualization with 5-second polling
+  - Live monitoring dashboard with system metrics, algorithm distribution, and activity feed
+  - Load testing interface connected to backend `/api/benchmark/run` endpoint
+  - Configuration management with CRUD operations for global, per-key, and pattern-based limits
+  - API Keys management page with active keys tracking and admin controls
+  - Analytics page with historical trends (demo/preview feature)
+  - Interactive algorithm comparison tool with educational simulations
+  - Built with React 18, TypeScript, Vite, Tailwind CSS, shadcn/ui
+  - 6 comprehensive dashboard screenshots included in documentation
+  
+- **🚰 Leaky Bucket Algorithm**: New traffic shaping algorithm for constant output rates
+  - Queue-based processing at constant rate with no bursts allowed
+  - Ideal for downstream service protection and SLA compliance
+  - Redis backend support with atomic Lua scripts
+  - In-memory implementation for development
+  - Comprehensive test coverage and benchmarking
+  - Complete documentation with examples (cURL, Java, Python, Node.js, Go)
+  - ADR-004 documenting design decisions and use cases
+  
+- **🔄 Composite Rate Limiting**: Multi-algorithm composition with configurable logic
+  - Combine multiple algorithms (Token Bucket, Sliding Window, Fixed Window, Leaky Bucket)
+  - 5 combination logic types: ALL_MUST_PASS, ANY_CAN_PASS, WEIGHTED_AVERAGE, HIERARCHICAL_AND, PRIORITY_BASED
+  - Component-level results with detailed breakdown
+  - Scope support (USER, TENANT, GLOBAL, API, BANDWIDTH)
+  - Weight and priority-based evaluation
+  - Enterprise use cases: SaaS platforms, financial systems, gaming, IoT
+  - Complete examples and documentation
+  - ADR-005 with architecture decision rationale
+  
+- **🌍 Geographic Rate Limiting**: Location-aware rate limiting with compliance zone support
+  - Multi-CDN header support (CloudFlare, AWS CloudFront, Azure CDN)
+  - Automatic compliance zone detection (GDPR, CCPA, PIPEDA)
+  - Country and region-based rate limiting rules
+  - REST API endpoints for geographic rule management
+  - Fallback logic for unknown locations
+  - Performance optimized with <2ms additional latency
+  - Complete integration examples and documentation
+  
+- **CORS Support**: Global CORS configuration for web dashboard frontend
+  - Support for localhost:3000, localhost:5173, 127.0.0.1, IPv6 origins
+  - Comprehensive headers (Authorization, Content-Type, X-Requested-With)
+  - All HTTP methods (GET, POST, PUT, DELETE, OPTIONS)
+  - Credential support and preflight caching
+
+### Changed
+- **Enhanced Documentation**: 
+  - Main README updated with web dashboard section and comprehensive screenshots
+  - Dashboard README with backend integration architecture and feature status
+  - All API examples updated with Composite and Geographic rate limiting
+  - Complete screenshot gallery for all dashboard pages
+  - Updated copilot instructions with 5-algorithm support
+  
+- **Code Modernization**:
+  - Replaced wildcard imports with specific imports across all services and controllers
+  - Modernized test mocking to use @TestConfiguration
+  - Updated Redis connection API to modern Spring Data Redis patterns
+  - Replaced deprecated Spring test assertion methods
+  - Improved API parameter handling with comprehensive model tests
+  - Locale-independent toString implementations
+  
+- **Configuration System**:
+  - Enhanced configuration resolution for algorithm-specific settings
+  - Support for composite algorithm configuration via REST API
+  - Geographic rule configuration with priority-based matching
+  - Pattern-based configuration for geographic rules
+
+### Fixed
+- **CI/CD Test Failures**:
+  - Fixed Redis connection pool test for CI/CD environments
+  - Fixed ConcurrentPerformanceTest.testEndurance test stability
+  - Added missing CompositeRateLimiterService mock
+  - Made geographic components conditional to fix test failures
+  
+- **Frontend Issues**:
+  - Resolved CORS issues between frontend and backend
+  - Synchronized frontend TypeScript models with backend DTOs
+  - Fixed Configuration page data loading issue
+  - Added missing proxy routes for /admin and /metrics endpoints
+  - Removed unused mock data generators from Dashboard and LoadTesting pages
+  
+- **Code Quality**:
+  - Improved test coverage for geographic rate limiting
+  - Enhanced error handling and validation for algorithm configuration
+  - Better memory cleanup for expired windows
+
+### Documentation
+- **Architecture Decision Records (ADRs)**:
+  - ADR-004: Leaky Bucket Algorithm design and use cases
+  - ADR-005: Composite Rate Limiting architecture
+  - Updated ADR README with complete algorithm comparison
+  
+- **API Documentation**:
+  - Complete API reference with 18 endpoints
+  - Geographic rate limiting endpoints documentation
+  - Composite rate limiting configuration examples
+  - Web dashboard integration guide
+  
+- **Client Examples**:
+  - Updated Java, Python, Node.js, Go, cURL examples
+  - Leaky Bucket usage patterns
+  - Composite rate limiting integration examples
+  - Geographic rate limiting with CDN headers
+  
+- **Deployment Guides**:
+  - Web dashboard deployment instructions
+  - Docker Compose setup for full stack
+  - Kubernetes manifests updates
+  - Production configuration recommendations
+
+### Technical
+- Total commits: 46 since v1.1.0
+- New Java classes: LeakyBucket.java, RedisLeakyBucket.java, CompositeRateLimiter.java, CompositeRateLimiterService.java, GeographicRateLimitingController.java
+- New React components: 20+ dashboard components with TypeScript
+- Test coverage: Maintained >85% with new algorithm tests
+- Performance: Maintained 50,000+ RPS with <2ms P95 latency
+- Memory efficiency: Leaky Bucket 50% less memory than Token Bucket
+
+### Breaking Changes
+None - all changes are backward compatible. Existing configurations continue to work with default Token Bucket algorithm.
+
+### Migration Notes
+- Web dashboard is optional - backend continues to function independently
+- New algorithms require explicit configuration - defaults remain unchanged
+- Geographic rate limiting is opt-in via header detection
+- Composite rate limiting requires specific configuration with `compositeConfig`
+
+## [1.1.0] - 2024-10-14
+
+### Added
+- **Fixed Window Counter Algorithm**: New memory-efficient rate limiting algorithm
+  - 50% less memory usage compared to Token Bucket and Sliding Window
+  - Predictable reset times with fixed interval boundaries
+  - High-performance atomic operations
+- Algorithm selection via configuration (`ratelimiter.algorithm` property)
+- New Redis Lua script for atomic Fixed Window operations (`fixed-window.lua`)
+- Enhanced API endpoint with algorithm parameter support
+- Comprehensive test suite for Fixed Window algorithm
+- Algorithm comparison and demonstration utilities
+- Performance benchmarking for all three algorithms
+
+### Changed
+- Enhanced configuration resolution for algorithm-specific settings
+- Updated API documentation with algorithm selection examples
+- Improved error handling and validation for algorithm configuration
+- Enhanced client examples with Fixed Window usage patterns
+
+### Documentation
+- **ADR-003**: Fixed Window Counter algorithm design document
+- Updated performance comparisons and memory usage analysis
+- Enhanced API documentation with algorithm examples
+- Updated client integration guides (Java, Python, Node.js, Go, cURL)
+
+### Technical
+- `FixedWindow.java`: Local in-memory implementation
+- `RedisFixedWindow.java`: Distributed Redis implementation
+- Enhanced algorithm factory pattern for runtime selection
+- Improved memory cleanup for expired windows
+- Optimized Redis connection pooling
+
+## [1.0.0] - 2024-10-01
+
+### Added
+- Initial release of Distributed Rate Limiter service
+- **Token Bucket Algorithm**: Primary rate limiting algorithm with burst support
+- **Sliding Window Algorithm**: Alternative algorithm for smooth rate limiting
+- Redis backend for distributed rate limiting with atomic Lua scripts
+- In-memory backend for development and testing
+- RESTful API with 18 endpoints:
+  - Rate limiting check endpoint (`/api/ratelimit/check`)
+  - Configuration management (`/api/ratelimit/config/*`)
+  - Admin operations (`/api/admin/*`)
+  - Performance monitoring (`/api/performance/*`)
+  - Benchmarking tools (`/api/benchmark/*`)
+  - Health and metrics (`/actuator/*`)
+- Configuration hierarchy: per-key > pattern-based > global defaults
+- Comprehensive monitoring with Micrometer and Prometheus integration
+- Docker support with multi-stage builds
+- Kubernetes deployment manifests
+- Extensive test suite (265+ tests) with Testcontainers integration
+
+### Documentation
+- **ADR-001**: Token Bucket algorithm selection rationale
+- **ADR-002**: Redis distributed state management design
+- Complete API documentation with Swagger/OpenAPI
+- Client integration examples for multiple languages
+- Performance and configuration guides
+- Deployment and operations documentation
+
+### Infrastructure
+- Maven build system with Java 21 support
+- CI/CD pipeline configuration
+- Security scanning with OWASP dependency check
+- Code coverage reporting with JaCoCo
+- Multi-architecture Docker images (amd64, arm64)
+- Production-ready logging and health checks
+
+[1.3.1]: https://github.com/uppnrise/distributed-rate-limiter/compare/v1.3.0...v1.3.1
+[1.3.2]: https://github.com/uppnrise/distributed-rate-limiter/compare/v1.3.1...v1.3.2
+[1.3.0]: https://github.com/uppnrise/distributed-rate-limiter/compare/v1.2.0...v1.3.0
+[1.2.0]: https://github.com/uppnrise/distributed-rate-limiter/compare/v1.1.0...v1.2.0
+[1.1.0]: https://github.com/uppnrise/distributed-rate-limiter/compare/v1.0.0...v1.1.0
+[1.0.0]: https://github.com/uppnrise/distributed-rate-limiter/releases/tag/v1.0.0
